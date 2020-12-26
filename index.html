@@ -23,17 +23,52 @@ async function loadNotes(ctx, volume, notes) {
     }));
 }
 
-function cloneNotes(ctx, notes) {
-    return notes.map(note => createBufferSource(ctx, note.buffer));
+function cloneNotes(notes) {
+    return notes.map(note => createBufferSource(note.context, note.buffer));
+}
+
+function crossProduct(a, b) {
+    return Array.from(a).flatMap(a_i => Array.from(b).map(b_i => a_i + b_i));
+}
+
+const N_PLAYERS = 2;
+const PULSES_PER_MEASURE = 8; // eighth notes
+const TICKS_PER_PULSE = 40;
+const PULSES_PER_MINUTE = 80;
+const NOTE_NAMES = crossProduct('CDEFGAB', '345');
+
+class Player {
+    constructor(notes) {
+        this.notes = cloneNotes(notes);
+        this.sequence = Array.from({length: PULSES_PER_MEASURE}, () => []);
+        this.tick_offset = 0;
+    }
+
+    tick(t) {
+        if ((t - this.tick_offset) % TICKS_PER_PULSE == 0) {
+            const pulse_number = Math.floor(t / TICKS_PER_PULSE);
+            const notes = this.sequence[pulse_number];
+            this.sequence[pulse_number] = cloneNotes(notes);
+            notes.forEach(note => note.start());
+        }
+    }
 }
 
 window.addEventListener('load', async () => {
     setTimeout(() => location.reload(), 3000);
     const ctx = new AudioContext();
-    const notes = await loadNotes(ctx, 'mf', ['C3', 'E3', 'G3', 'B3', 'D4']);
-    notes.map(note => note.start());
-    const notes2 = cloneNotes(ctx, notes);
-    notes2.map(note => note.start(0.5));
+    const notes = await loadNotes(ctx, 'ff', NOTE_NAMES);
+    const players = Array.from({length: N_PLAYERS}, () => new Player(notes));
+    players.forEach(player => player.sequence[0] = [player.notes[10]]);
+    players[1].tick_offset = 3;
+    const ticks_per_minute = TICKS_PER_PULSE * PULSES_PER_MINUTE;
+    const ms_per_tick = (1 / ticks_per_minute) * 60 * 1000;
+    const ticks_per_measure = TICKS_PER_PULSE * PULSES_PER_MEASURE;
+    let t = 0;
+    setInterval(() => {
+        players.forEach(player => player.tick(t % ticks_per_measure));
+        t++;
+    }, ms_per_tick);
 });
 </script>
 </head>
