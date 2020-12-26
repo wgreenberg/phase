@@ -1,20 +1,31 @@
 <html>
 <head>
 <script>
-window.addEventListener('load', () => {
-    const audioContext = new AudioContext();
-    const notes = Array.from(document.querySelectorAll('audio'));
-    const tracks = notes.map(note => audioContext.createMediaElementSource(note));
-    tracks.forEach(track => track.connect(audioContext.destination));
-    notes.forEach(note => note.play());
+
+async function loadBuffer(ctx, path) {
+    const response = await fetch(path);
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    return audioBuffer;
+}
+
+async function loadNotes(ctx, volume, notes) {
+    return await Promise.all(notes.map(async (note) => {
+        let source = ctx.createBufferSource();
+        source.buffer = await loadBuffer(ctx, `samples/${volume}/${note}.mp3`);
+        source.connect(ctx.destination);
+        return source;
+    }));
+}
+
+window.addEventListener('load', async () => {
     setTimeout(() => location.reload(), 3000);
+    const ctx = new AudioContext();
+    const notes = await loadNotes(ctx, 'mf', ['C3', 'E3', 'G3', 'B3']);
+    notes.map(note => note.start());
 });
 </script>
 </head>
 <body>
-<audio src="samples/mf/C3.mp3"></audio>
-<audio src="samples/mf/E3.mp3"></audio>
-<audio src="samples/mf/G3.mp3"></audio>
-<audio src="samples/mf/B3.mp3"></audio>
 </body>
 </html>
