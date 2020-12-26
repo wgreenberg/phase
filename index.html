@@ -1,13 +1,20 @@
 <html>
+<head>
 <script>
-function reload() {
-    location.reload();
-}
-setTimeout(reload, 500);
-
-(() => {
+window.addEventListener('load', () => {
     const audioContext = new AudioContext();
-    console.log(audioContext);
-})();
+    const notes = Array.from(document.querySelectorAll('audio'));
+    const tracks = notes.map(note => audioContext.createMediaElementSource(note));
+    tracks.forEach(track => track.connect(audioContext.destination));
+    notes.forEach(note => note.play());
+    setTimeout(() => location.reload(), 3000);
+});
 </script>
+</head>
+<body>
+<audio src="samples/mf/C3.mp3"></audio>
+<audio src="samples/mf/E3.mp3"></audio>
+<audio src="samples/mf/G3.mp3"></audio>
+<audio src="samples/mf/B3.mp3"></audio>
+</body>
 </html>
