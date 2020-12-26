@@ -9,20 +9,31 @@ async function loadBuffer(ctx, path) {
     return audioBuffer;
 }
 
+function createBufferSource(ctx, buffer) {
+    let source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    return source;
+}
+
 async function loadNotes(ctx, volume, notes) {
     return await Promise.all(notes.map(async (note) => {
-        let source = ctx.createBufferSource();
-        source.buffer = await loadBuffer(ctx, `samples/${volume}/${note}.mp3`);
-        source.connect(ctx.destination);
-        return source;
+        const buffer = await loadBuffer(ctx, `samples/${volume}/${note}.mp3`);
+        return createBufferSource(ctx, buffer);
     }));
+}
+
+function cloneNotes(ctx, notes) {
+    return notes.map(note => createBufferSource(ctx, note.buffer));
 }
 
 window.addEventListener('load', async () => {
     setTimeout(() => location.reload(), 3000);
     const ctx = new AudioContext();
-    const notes = await loadNotes(ctx, 'mf', ['C3', 'E3', 'G3', 'B3']);
+    const notes = await loadNotes(ctx, 'mf', ['C3', 'E3', 'G3', 'B3', 'D4']);
     notes.map(note => note.start());
+    const notes2 = cloneNotes(ctx, notes);
+    notes2.map(note => note.start(0.5));
 });
 </script>
 </head>
