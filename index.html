@@ -31,7 +31,7 @@ function crossProduct(a, b) {
     return Array.from(b).flatMap(a_i => Array.from(a).map(b_i => b_i + a_i));
 }
 
-const N_PLAYERS = 4;
+const N_PLAYERS = 2;
 const PULSES_PER_MEASURE = 8; // eighth notes
 const TICKS_PER_PULSE = 40;
 const PULSES_PER_MINUTE = 80;
@@ -42,12 +42,14 @@ class Player {
         this.notes = notes.map(cloneNote);
         this.sequence = Array.from({length: PULSES_PER_MEASURE}, () => []);
         this.tick_offset = 0;
+        this.last_played_pulse = 0;
     }
 
     tick(t) {
         const adjusted_tick = t + this.tick_offset;
         if (adjusted_tick % TICKS_PER_PULSE == 0) {
             const pulse_number = (adjusted_tick / TICKS_PER_PULSE) % PULSES_PER_MEASURE;
+            this.last_played_pulse = pulse_number;
             this.sequence[pulse_number].forEach(note_idx => {
                 const note = this.notes[note_idx];
                 this.notes[note_idx] = cloneNote(note);
@@ -60,18 +62,24 @@ class Player {
 function parseSequence(sequencer) {
     const sequence = Array.from({length: PULSES_PER_MEASURE}, () => []);
     sequence.forEach((_, measure_idx) => {
-        for (let note_idx = 0; note_idx < sequencer.rows.length; note_idx++) {
-            const input = sequencer.rows[note_idx].cells[measure_idx + 1].firstChild;
+        Array.from(sequencer.rows).slice(1).forEach((row, note_idx) => {
+            const input = row.cells[measure_idx + 1].firstChild;
             if (input.checked) {
                 sequence[measure_idx].push(note_idx);
             }
-        }
+        });
     });
     return sequence;
 }
 
 function buildSequencer(notes, measure_length) {
     const table = document.getElementById('sequencer');
+    const player_row = document.createElement('tr');
+    player_row.id = 'players';
+    for (let i=0; i < PULSES_PER_MEASURE + 1; i++) {
+        player_row.appendChild(document.createElement('td'));
+    }
+    table.appendChild(player_row);
     notes.forEach(note => {
         const row = document.createElement('tr');
         const header = document.createElement('th');
@@ -88,8 +96,16 @@ function buildSequencer(notes, measure_length) {
     });
 }
 
+function updatePlayerRow(players) {
+    const last_played_pulses = Array.from({length: PULSES_PER_MEASURE}, () => []);
+    players.forEach((player, i) => last_played_pulses[player.last_played_pulse].push(i));
+    const row = document.getElementById('players').cells;
+    Array.from(row).slice(1).forEach((pulse_td, i) => {
+        pulse_td.innerText = last_played_pulses[i].join(',');
+    });
+}
+
 window.addEventListener('load', async () => {
-    //setTimeout(() => location.reload(), 3000);
     const ctx = new AudioContext();
     const notes = await loadNotes(ctx, 'ff', NOTE_NAMES);
     const players = Array.from({length: N_PLAYERS}, () => new Player(notes));
@@ -110,6 +126,7 @@ window.addEventListener('load', async () => {
         if (t % ticks_per_measure == 0) {
             players.forEach((player, i) => player.tick_offset += i * TICKS_PER_PULSE);
         }
+        updatePlayerRow(players);
         t++;
     }, ms_per_tick);
 });
