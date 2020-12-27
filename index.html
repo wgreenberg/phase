@@ -23,15 +23,15 @@ async function loadNotes(ctx, volume, notes) {
     }));
 }
 
-function cloneNotes(notes) {
-    return notes.map(note => createBufferSource(note.context, note.buffer));
+function cloneNote(note) {
+    return createBufferSource(note.context, note.buffer);
 }
 
 function crossProduct(a, b) {
-    return Array.from(a).flatMap(a_i => Array.from(b).map(b_i => a_i + b_i));
+    return Array.from(b).flatMap(a_i => Array.from(a).map(b_i => b_i + a_i));
 }
 
-const N_PLAYERS = 2;
+const N_PLAYERS = 4;
 const PULSES_PER_MEASURE = 8; // eighth notes
 const TICKS_PER_PULSE = 40;
 const PULSES_PER_MINUTE = 80;
@@ -39,39 +39,83 @@ const NOTE_NAMES = crossProduct('CDEFGAB', '345');
 
 class Player {
     constructor(notes) {
-        this.notes = cloneNotes(notes);
+        this.notes = notes.map(cloneNote);
         this.sequence = Array.from({length: PULSES_PER_MEASURE}, () => []);
         this.tick_offset = 0;
     }
 
     tick(t) {
-        if ((t - this.tick_offset) % TICKS_PER_PULSE == 0) {
-            const pulse_number = Math.floor(t / TICKS_PER_PULSE);
-            const notes = this.sequence[pulse_number];
-            this.sequence[pulse_number] = cloneNotes(notes);
-            notes.forEach(note => note.start());
+        const adjusted_tick = t + this.tick_offset;
+        if (adjusted_tick % TICKS_PER_PULSE == 0) {
+            const pulse_number = (adjusted_tick / TICKS_PER_PULSE) % PULSES_PER_MEASURE;
+            this.sequence[pulse_number].forEach(note_idx => {
+                const note = this.notes[note_idx];
+                this.notes[note_idx] = cloneNote(note);
+                note.start();
+            });
         }
     }
 }
 
+function parseSequence(sequencer) {
+    const sequence = Array.from({length: PULSES_PER_MEASURE}, () => []);
+    sequence.forEach((_, measure_idx) => {
+        for (let note_idx = 0; note_idx < sequencer.rows.length; note_idx++) {
+            const input = sequencer.rows[note_idx].cells[measure_idx + 1].firstChild;
+            if (input.checked) {
+                sequence[measure_idx].push(note_idx);
+            }
+        }
+    });
+    return sequence;
+}
+
+function buildSequencer(notes, measure_length) {
+    const table = document.getElementById('sequencer');
+    notes.forEach(note => {
+        const row = document.createElement('tr');
+        const header = document.createElement('th');
+        header.innerText = note;
+        row.appendChild(header);
+        for (let i=0; i < measure_length; i++) {
+            const cell = document.createElement('td');
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            cell.appendChild(input);
+            row.appendChild(cell);
+        }
+        table.appendChild(row);
+    });
+}
+
 window.addEventListener('load', async () => {
-    setTimeout(() => location.reload(), 3000);
+    //setTimeout(() => location.reload(), 3000);
     const ctx = new AudioContext();
     const notes = await loadNotes(ctx, 'ff', NOTE_NAMES);
     const players = Array.from({length: N_PLAYERS}, () => new Player(notes));
-    players.forEach(player => player.sequence[0] = [player.notes[10]]);
-    players[1].tick_offset = 3;
     const ticks_per_minute = TICKS_PER_PULSE * PULSES_PER_MINUTE;
     const ms_per_tick = (1 / ticks_per_minute) * 60 * 1000;
     const ticks_per_measure = TICKS_PER_PULSE * PULSES_PER_MEASURE;
+    buildSequencer(NOTE_NAMES, PULSES_PER_MEASURE);
+    const handler = () => {
+        const sequence = parseSequence(document.getElementById('sequencer'));
+        players.forEach(player => player.sequence = sequence);
+    };
+    Array.from(document.getElementsByTagName('input'))
+        .forEach(input => input.addEventListener('change', handler));
+
     let t = 0;
     setInterval(() => {
         players.forEach(player => player.tick(t % ticks_per_measure));
+        if (t % ticks_per_measure == 0) {
+            players.forEach((player, i) => player.tick_offset += i * TICKS_PER_PULSE);
+        }
         t++;
     }, ms_per_tick);
 });
 </script>
 </head>
 <body>
+<table id='sequencer'></table>
 </body>
 </html>
