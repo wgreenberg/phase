@@ -72,13 +72,14 @@ function readSequence(sequencer) {
 }
 
 function sequenceToString(sequence) {
-    return sequence.map(pulse => pulse.join(',')).join(';');
+    return btoa(sequence.map(pulse => pulse.join(',')).join(';'));
 }
 
 function sequenceFromString(input) {
-    const sequence = input.split(';')
+    const sequence = atob(input).split(';')
         .map(pulse => pulse.split(',').filter(n => n != '').map(n => parseInt(n)));
     if (sequence.length !== PULSES_PER_MEASURE && sequence[0].length !== NOTE_NAMES.length) {
+        console.log(sequence)
         throw `invalid sequence ${sequence}`;
     }
     return sequence;
