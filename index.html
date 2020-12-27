@@ -30,10 +30,10 @@ function crossProduct(a, b) {
     return Array.from(b).flatMap(a_i => Array.from(a).map(b_i => b_i + a_i));
 }
 
-const N_PLAYERS = 2;
+const N_PLAYERS = 3;
 const PULSES_PER_MEASURE = 8; // eighth notes
 const TICKS_PER_PULSE = 40;
-const PULSES_PER_MINUTE = 80;
+const PULSES_PER_MINUTE = 120;
 const NOTE_NAMES = crossProduct('CDEFGAB', '345');
 
 class Player {
@@ -144,11 +144,19 @@ window.addEventListener('load', async () => {
     const msPerTick = (1 / ticksPerMinute) * 60 * 1000;
     const ticksPerMeasure = TICKS_PER_PULSE * PULSES_PER_MEASURE;
     let t = 0;
+    const phaseLockedInput = document.getElementById('phaseLock');
     setInterval(() => {
-        players.forEach(player => player.tick(t % ticksPerMeasure));
-        if (t % ticksPerMeasure == 0) {
-            players.forEach((player, i) => player.tickOffset += i * TICKS_PER_PULSE);
-        }
+        players.forEach((player, i) => {
+            player.tick(t % ticksPerMeasure);
+            if (t % ticksPerMeasure == 0) {
+                console.log(phaseLockedInput.checked);
+                if (phaseLockedInput.checked) {
+                    player.tickOffset += i * TICKS_PER_PULSE;
+                } else {
+                    player.tickOffset += i * 3;
+                }
+            }
+        });
         updatePlayerRow(players);
         t++;
     }, msPerTick);
@@ -157,5 +165,6 @@ window.addEventListener('load', async () => {
 </head>
 <body>
 <table id='sequencer'></table>
+<span>Lock phase to pulse?<input type='checkbox' id='phaseLock'></input></span>
 </body>
 </html>
