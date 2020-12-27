@@ -1,7 +1,6 @@
 <html>
 <head>
 <script>
-
 async function loadBuffer(ctx, path) {
     const response = await fetch(path);
     const arrayBuffer = await response.arrayBuffer();
@@ -38,9 +37,9 @@ const PULSES_PER_MINUTE = 80;
 const NOTE_NAMES = crossProduct('CDEFGAB', '345');
 
 class Player {
-    constructor(notes) {
+    constructor(notes, sequence) {
         this.notes = notes.map(cloneNote);
-        this.sequence = Array.from({length: PULSES_PER_MEASURE}, () => []);
+        this.sequence = sequence;
         this.tick_offset = 0;
         this.last_played_pulse = 0;
     }
@@ -59,7 +58,7 @@ class Player {
     }
 }
 
-function parseSequence(sequencer) {
+function readSequence(sequencer) {
     const sequence = Array.from({length: PULSES_PER_MEASURE}, () => []);
     sequence.forEach((_, measure_idx) => {
         Array.from(sequencer.rows).slice(1).forEach((row, note_idx) => {
@@ -72,7 +71,20 @@ function parseSequence(sequencer) {
     return sequence;
 }
 
-function buildSequencer(notes, measure_length) {
+function sequenceToString(sequence) {
+    return sequence.map(pulse => pulse.join(',')).join(';');
+}
+
+function sequenceFromString(input) {
+    const sequence = input.split(';')
+        .map(pulse => pulse.split(',').filter(n => n != '').map(n => parseInt(n)));
+    if (sequence.length !== PULSES_PER_MEASURE && sequence[0].length !== NOTE_NAMES.length) {
+        throw `invalid sequence ${sequence}`;
+    }
+    return sequence;
+}
+
+function buildSequencer(notes, measure_length, players, sequence) {
     const table = document.getElementById('sequencer');
     const player_row = document.createElement('tr');
     player_row.id = 'players';
@@ -80,20 +92,28 @@ function buildSequencer(notes, measure_length) {
         player_row.appendChild(document.createElement('td'));
     }
     table.appendChild(player_row);
-    notes.forEach(note => {
+    notes.forEach((note, noteIdx) => {
         const row = document.createElement('tr');
         const header = document.createElement('th');
         header.innerText = note;
         row.appendChild(header);
-        for (let i=0; i < measure_length; i++) {
+        for (let pulseIdx=0; pulseIdx < measure_length; pulseIdx++) {
             const cell = document.createElement('td');
             const input = document.createElement('input');
             input.type = 'checkbox';
+            input.checked = sequence[pulseIdx].includes(noteIdx);
             cell.appendChild(input);
             row.appendChild(cell);
         }
         table.appendChild(row);
     });
+
+    const inputs = Array.from(document.getElementsByTagName('input'));
+    inputs.forEach(input => input.addEventListener('change', () => {
+        const sequence = readSequence(document.getElementById('sequencer'));
+        window.location.hash = `#${sequenceToString(sequence)}`;
+        players.forEach(player => player.sequence = sequence);
+    }));
 }
 
 function updatePlayerRow(players) {
@@ -108,18 +128,20 @@ function updatePlayerRow(players) {
 window.addEventListener('load', async () => {
     const ctx = new AudioContext();
     const notes = await loadNotes(ctx, 'ff', NOTE_NAMES);
-    const players = Array.from({length: N_PLAYERS}, () => new Player(notes));
+    let sequence = Array.from({length: PULSES_PER_MEASURE}, () => []);;
+    if (window.location.hash.length > 0) {
+        try {
+            sequence = sequenceFromString(window.location.hash.substr(1));
+        } catch (e) {
+            console.log(`failed to parse sequence in url: ${e}`);
+        }
+    }
+    const players = Array.from({length: N_PLAYERS}, () => new Player(notes, sequence));
+    buildSequencer(NOTE_NAMES, PULSES_PER_MEASURE, players, sequence);
+
     const ticks_per_minute = TICKS_PER_PULSE * PULSES_PER_MINUTE;
     const ms_per_tick = (1 / ticks_per_minute) * 60 * 1000;
     const ticks_per_measure = TICKS_PER_PULSE * PULSES_PER_MEASURE;
-    buildSequencer(NOTE_NAMES, PULSES_PER_MEASURE);
-    const handler = () => {
-        const sequence = parseSequence(document.getElementById('sequencer'));
-        players.forEach(player => player.sequence = sequence);
-    };
-    Array.from(document.getElementsByTagName('input'))
-        .forEach(input => input.addEventListener('change', handler));
-
     let t = 0;
     setInterval(() => {
         players.forEach(player => player.tick(t % ticks_per_measure));
