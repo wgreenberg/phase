@@ -40,18 +40,18 @@ class Player {
     constructor(notes, sequence) {
         this.notes = notes.map(cloneNote);
         this.sequence = sequence;
-        this.tick_offset = 0;
-        this.last_played_pulse = 0;
+        this.tickOffset = 0;
+        this.lastPlayedPulse = 0;
     }
 
     tick(t) {
-        const adjusted_tick = t + this.tick_offset;
-        if (adjusted_tick % TICKS_PER_PULSE == 0) {
-            const pulse_number = (adjusted_tick / TICKS_PER_PULSE) % PULSES_PER_MEASURE;
-            this.last_played_pulse = pulse_number;
-            this.sequence[pulse_number].forEach(note_idx => {
-                const note = this.notes[note_idx];
-                this.notes[note_idx] = cloneNote(note);
+        const adjustedTick = t + this.tickOffset;
+        if (adjustedTick % TICKS_PER_PULSE == 0) {
+            const pulseNumber = (adjustedTick / TICKS_PER_PULSE) % PULSES_PER_MEASURE;
+            this.lastPlayedPulse = pulseNumber;
+            this.sequence[pulseNumber].forEach(noteIdx => {
+                const note = this.notes[noteIdx];
+                this.notes[noteIdx] = cloneNote(note);
                 note.start();
             });
         }
@@ -60,11 +60,11 @@ class Player {
 
 function readSequence(sequencer) {
     const sequence = Array.from({length: PULSES_PER_MEASURE}, () => []);
-    sequence.forEach((_, measure_idx) => {
-        Array.from(sequencer.rows).slice(1).forEach((row, note_idx) => {
-            const input = row.cells[measure_idx + 1].firstChild;
+    sequence.forEach((_, measureIdx) => {
+        Array.from(sequencer.rows).slice(1).forEach((row, noteIdx) => {
+            const input = row.cells[measureIdx + 1].firstChild;
             if (input.checked) {
-                sequence[measure_idx].push(note_idx);
+                sequence[measureIdx].push(noteIdx);
             }
         });
     });
@@ -86,12 +86,12 @@ function sequenceFromString(input) {
 
 function buildSequencer(notes, measure_length, players, sequence) {
     const table = document.getElementById('sequencer');
-    const player_row = document.createElement('tr');
-    player_row.id = 'players';
+    const playerRow = document.createElement('tr');
+    playerRow.id = 'players';
     for (let i=0; i < PULSES_PER_MEASURE + 1; i++) {
-        player_row.appendChild(document.createElement('td'));
+        playerRow.appendChild(document.createElement('td'));
     }
-    table.appendChild(player_row);
+    table.appendChild(playerRow);
     notes.forEach((note, noteIdx) => {
         const row = document.createElement('tr');
         const header = document.createElement('th');
@@ -117,11 +117,11 @@ function buildSequencer(notes, measure_length, players, sequence) {
 }
 
 function updatePlayerRow(players) {
-    const last_played_pulses = Array.from({length: PULSES_PER_MEASURE}, () => []);
-    players.forEach((player, i) => last_played_pulses[player.last_played_pulse].push(i));
+    const lastPlayedPulses = Array.from({length: PULSES_PER_MEASURE}, () => []);
+    players.forEach((player, i) => lastPlayedPulses[player.lastPlayedPulse].push(i));
     const row = document.getElementById('players').cells;
-    Array.from(row).slice(1).forEach((pulse_td, i) => {
-        pulse_td.innerText = last_played_pulses[i].join(',');
+    Array.from(row).slice(1).forEach((pulseTd, i) => {
+        pulseTd.innerText = lastPlayedPulses[i].join(',');
     });
 }
 
@@ -139,18 +139,18 @@ window.addEventListener('load', async () => {
     const players = Array.from({length: N_PLAYERS}, () => new Player(notes, sequence));
     buildSequencer(NOTE_NAMES, PULSES_PER_MEASURE, players, sequence);
 
-    const ticks_per_minute = TICKS_PER_PULSE * PULSES_PER_MINUTE;
-    const ms_per_tick = (1 / ticks_per_minute) * 60 * 1000;
-    const ticks_per_measure = TICKS_PER_PULSE * PULSES_PER_MEASURE;
+    const ticksPerMinute = TICKS_PER_PULSE * PULSES_PER_MINUTE;
+    const msPerTick = (1 / ticksPerMinute) * 60 * 1000;
+    const ticksPerMeasure = TICKS_PER_PULSE * PULSES_PER_MEASURE;
     let t = 0;
     setInterval(() => {
-        players.forEach(player => player.tick(t % ticks_per_measure));
-        if (t % ticks_per_measure == 0) {
-            players.forEach((player, i) => player.tick_offset += i * TICKS_PER_PULSE);
+        players.forEach(player => player.tick(t % ticksPerMeasure));
+        if (t % ticksPerMeasure == 0) {
+            players.forEach((player, i) => player.tickOffset += i * TICKS_PER_PULSE);
         }
         updatePlayerRow(players);
         t++;
-    }, ms_per_tick);
+    }, msPerTick);
 });
 </script>
 </head>
